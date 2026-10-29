@@ -1,0 +1,267 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>GoFare: tap to pay for transport</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:wght@600;800&family=DM+Sans:wght@400;500;700&display=swap">
+<style>
+:root{--bg:#FFF4F8;--surface:#fff;--ink:#3B1428;--muted:#7A4F65;--line:#F4C9DA;--pink:#D81B6A;--onpink:#fff;--ok:#17714A;--bad:#A8241C;--okbg:#E3F6EB;--badbg:#FFE3DE;color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}
+*,*::before,*::after{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.5 "DM Sans",system-ui,sans-serif}
+.wrap{max-width:1000px;margin:0 auto;padding:24px 16px 48px}
+h1{font:800 clamp(2.6rem,8vw,4.4rem)/1 "Bricolage Grotesque",system-ui,sans-serif;letter-spacing:-.03em;margin:0;color:var(--pink)}
+h2{font:600 1.2rem "Bricolage Grotesque",system-ui,sans-serif;margin:0 0 12px}
+.sub{color:var(--muted);max-width:56ch;margin:10px 0 24px}
+.grid{display:grid;gap:16px;grid-template-columns:1fr 1fr;margin-bottom:16px}
+@media(max-width:760px){.grid{grid-template-columns:1fr}}
+.panel{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:18px}
+label{display:block;font-weight:500;font-size:.9rem;margin:12px 0 4px}
+input,select{width:100%;padding:10px 12px;font:inherit;color:var(--ink);background:var(--bg);border:1px solid var(--line);border-radius:8px}
+:focus-visible{outline:3px solid var(--pink);outline-offset:2px}
+button{font:inherit;font-weight:700;padding:10px 16px;border-radius:8px;border:1px solid var(--pink);background:var(--pink);color:var(--onpink);cursor:pointer}
+button.alt{background:transparent;color:var(--ink);border-color:var(--line)}
+button:disabled{opacity:.5;cursor:not-allowed}
+.row{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}
+.vcard{background:#D81B6A;color:#fff;border-radius:16px;padding:16px 18px;max-width:340px;min-height:190px;display:flex;flex-direction:column;justify-content:space-between}
+.vcard.blocked{background:#7A6672}
+.vcard .top{display:flex;justify-content:space-between;align-items:center;font-weight:700}
+.chip{width:40px;height:30px;border-radius:6px;background:#fff}
+.bal{font:800 2rem/1.1 "Bricolage Grotesque",system-ui,sans-serif}
+.gate{display:flex;align-items:center;gap:14px;padding:14px;border-radius:12px;background:var(--bg);border:2px solid var(--line);margin-top:16px;min-height:88px}
+.gate.ok{background:var(--okbg);border-color:var(--ok)}
+.gate.bad{background:var(--badbg);border-color:var(--bad)}
+.lamp{flex:none;width:30px;height:30px;border-radius:50%;background:var(--line)}
+.gate.ok .lamp{background:var(--ok)}
+.gate.bad .lamp{background:var(--bad)}
+#gTitle{font-weight:700}
+#gText{color:var(--muted);font-size:.92rem}
+.note{min-height:1.5em;margin:10px 0 0;font-size:.92rem}
+.good{color:var(--ok)}.err{color:var(--bad)}
+.hint{color:var(--muted);font-size:.85rem;margin:6px 0 0}
+.scroll{overflow-x:auto}
+table{width:100%;border-collapse:collapse;font-size:.92rem;min-width:520px}
+th,td{text-align:left;padding:8px 10px;border-bottom:1px solid var(--line)}
+th{font-weight:700}
+td.ok{color:var(--ok);font-weight:700}td.bad{color:var(--bad);font-weight:700}
+footer{color:var(--muted);font-size:.85rem;margin-top:16px;display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap}
+@media(prefers-reduced-motion:no-preference){.gate{transition:background .2s,border-color .2s}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>GoFare</h1>
+    <p class="sub">Pay for the bus with a tap. Pick a card, top it up, then tap at the gate. The gate checks the card, the route and the balance before it takes a fare.</p>
+  </header>
+
+  <div class="grid">
+    <section class="panel" aria-labelledby="h1a">
+      <h2 id="h1a">Your card</h2>
+      <div class="vcard" id="vc">
+        <div class="top"><span class="chip" aria-hidden="true"></span><span id="vcState"></span></div>
+        <div><div class="bal" id="vcBal"></div><div id="vcName"></div><div id="vcId"></div></div>
+      </div>
+      <label for="cardSel">Choose card</label>
+      <select id="cardSel"></select>
+      <div class="row"><button type="button" class="alt" id="blockBtn">Block card</button></div>
+      <p class="hint">Lost your card? Block it so nobody can ride with your money.</p>
+    </section>
+
+    <section class="panel" aria-labelledby="h2a">
+      <h2 id="h2a">Gate</h2>
+      <label for="route">Route</label>
+      <select id="route"></select>
+      <div class="row"><button type="button" id="tapBtn">Tap card</button></div>
+      <div class="gate" id="gate" role="status" aria-live="polite">
+        <span class="lamp" aria-hidden="true"></span>
+        <div><div id="gTitle">Gate ready</div><div id="gText">Choose a route, then tap your card.</div></div>
+      </div>
+    </section>
+
+    <section class="panel" aria-labelledby="h3a">
+      <h2 id="h3a">Top up</h2>
+      <form id="topForm" novalidate>
+        <label for="amt">Amount in RWF</label>
+        <input id="amt" inputmode="numeric" autocomplete="off" placeholder="1000">
+        <div class="row">
+          <button type="button" class="alt q" data-a="500">500</button>
+          <button type="button" class="alt q" data-a="1000">1,000</button>
+          <button type="button" class="alt q" data-a="5000">5,000</button>
+          <button type="submit">Add money</button>
+        </div>
+      </form>
+      <p class="note" id="topMsg" role="status"></p>
+    </section>
+
+    <section class="panel" aria-labelledby="h4a">
+      <h2 id="h4a">New card</h2>
+      <form id="regForm" novalidate>
+        <label for="name">Name of card holder</label>
+        <input id="name" maxlength="40" autocomplete="off" placeholder="Aline Uwase">
+        <div class="row"><button type="submit">Create card</button></div>
+      </form>
+      <p class="note" id="regMsg" role="status"></p>
+    </section>
+  </div>
+
+  <section class="panel" aria-labelledby="h5a">
+    <h2 id="h5a">Recent activity</h2>
+    <div class="scroll">
+      <table>
+        <thead><tr><th>Time</th><th>Card</th><th>What happened</th><th>Amount</th><th>Balance</th><th>Result</th></tr></thead>
+        <tbody id="rows"></tbody>
+      </table>
+    </div>
+  </section>
+
+  <footer>
+    <span>Demo only: data stays in this browser. A real system keeps balances on a secure server.</span>
+    <button type="button" class="alt" id="resetBtn">Reset demo</button>
+  </footer>
+</div>
+
+<script>
+(function(){
+  var $ = function(id){ return document.getElementById(id); };
+  var KEY = 'gofare.v1', MIN = 100, MAX = 50000, WAIT = 5000;
+  // Demo fares in RWF. Change or add routes here.
+  var ROUTES = [
+    {id:'r1', name:'Nyabugogo to Remera', fare:350},
+    {id:'r2', name:'Nyabugogo to Kimironko', fare:450},
+    {id:'r3', name:'Downtown to Kicukiro', fare:300},
+    {id:'r4', name:'Remera to Airport', fare:400}
+  ];
+  var db = {cards:[], log:[]}, sel = '', last = {};
+
+  function fmt(n){ return Number(n).toLocaleString('en-US') + ' RWF'; }
+  function load(){
+    try {
+      var d = JSON.parse(localStorage.getItem(KEY) || 'null');
+      if (d && Array.isArray(d.cards) && Array.isArray(d.log)) db = d;
+    } catch (e) {}
+  }
+  function save(){ try { localStorage.setItem(KEY, JSON.stringify(db)); } catch (e) {} }
+  function cur(){ return db.cards.filter(function(c){ return c.id === sel; })[0] || null; }
+  function say(id, text, good){ var e = $(id); e.textContent = text; e.className = 'note ' + (good ? 'good' : 'err'); }
+  function addLog(c, text, amt, ok){
+    db.log.unshift({t:Date.now(), id:c ? c.id : '-', text:text, amt:amt, bal:c ? c.balance : 0, ok:ok});
+    db.log = db.log.slice(0, 30);
+  }
+  function gate(ok, title, text){
+    $('gate').className = 'gate ' + (ok ? 'ok' : 'bad');
+    $('gTitle').textContent = title;
+    $('gText').textContent = text;
+  }
+
+  function render(){
+    var s = $('cardSel');
+    s.replaceChildren.apply(s, db.cards.map(function(c){
+      var o = document.createElement('option');
+      o.value = c.id; o.textContent = c.id + ': ' + c.name;
+      return o;
+    }));
+    s.value = sel;
+    var c = cur();
+    $('vc').className = 'vcard' + (c && c.blocked ? ' blocked' : '');
+    $('vcState').textContent = c ? (c.blocked ? 'Blocked' : 'Active') : '';
+    $('vcBal').textContent = c ? fmt(c.balance) : '0 RWF';
+    $('vcName').textContent = c ? c.name : 'No card yet';
+    $('vcId').textContent = c ? c.id : 'Create a card to start';
+    $('blockBtn').textContent = c && c.blocked ? 'Unblock card' : 'Block card';
+    $('blockBtn').disabled = $('tapBtn').disabled = !c;
+
+    var tb = $('rows');
+    tb.replaceChildren();
+    if (!db.log.length) {
+      var td = tb.insertRow().insertCell();
+      td.colSpan = 6; td.textContent = 'No activity yet. Top up a card, then tap at the gate.';
+    }
+    db.log.slice(0, 10).forEach(function(l){
+      var tr = tb.insertRow();
+      var vals = [new Date(l.t).toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'}), l.id, l.text, l.amt ? fmt(l.amt) : '-', fmt(l.bal), l.ok ? 'Approved' : 'Declined'];
+      vals.forEach(function(v, i){
+        var cell = tr.insertCell(); cell.textContent = v;
+        if (i === 5) cell.className = l.ok ? 'ok' : 'bad';
+      });
+    });
+  }
+
+  // Create card
+  $('regForm').onsubmit = function(e){
+    e.preventDefault();
+    var name = $('name').value.trim().replace(/\s+/g, ' ');
+    if (!/^[\p{L}][\p{L} '’-]{1,39}$/u.test(name)) return say('regMsg', 'Enter a name with 2 to 40 letters.', 0);
+    var n = db.cards.reduce(function(m, c){ return Math.max(m, parseInt(c.id.slice(3), 10) || 0); }, 1000) + 1;
+    var c = {id:'GF-' + n, name:name, balance:0, blocked:false};
+    db.cards.push(c); sel = c.id; save();
+    $('name').value = ''; render();
+    say('regMsg', 'Card ' + c.id + ' created for ' + name + '. Top up to start riding.', 1);
+  };
+
+  // Top up
+  document.querySelectorAll('.q').forEach(function(b){
+    b.onclick = function(){ $('amt').value = b.dataset.a; };
+  });
+  $('topForm').onsubmit = function(e){
+    e.preventDefault();
+    var c = cur();
+    if (!c) return say('topMsg', 'Pick or create a card first.', 0);
+    if (c.blocked) return say('topMsg', 'This card is blocked. Unblock it before topping up.', 0);
+    var raw = $('amt').value.trim();
+    if (!/^\d+$/.test(raw)) return say('topMsg', 'Use whole numbers only, like 1000.', 0);
+    var a = parseInt(raw, 10);
+    if (a < MIN || a > MAX) return say('topMsg', 'Amount must be between ' + fmt(MIN) + ' and ' + fmt(MAX) + '.', 0);
+    c.balance += a; addLog(c, 'Top-up', a, true); save();
+    $('amt').value = ''; render();
+    say('topMsg', 'Added ' + fmt(a) + '. New balance: ' + fmt(c.balance) + '.', 1);
+  };
+
+  // Block or unblock
+  $('blockBtn').onclick = function(){
+    var c = cur(); if (!c) return;
+    c.blocked = !c.blocked;
+    addLog(c, c.blocked ? 'Card blocked' : 'Card unblocked', 0, true);
+    save(); render();
+  };
+
+  // Tap at the gate: every check runs before any money moves
+  $('tapBtn').onclick = function(){
+    var c = cur();
+    var r = ROUTES.filter(function(x){ return x.id === $('route').value; })[0];
+    function deny(title, text){ if (c) addLog(c, title, 0, false); save(); render(); gate(false, title, text); }
+    if (!c) return gate(false, 'No card', 'Create or choose a card first.');
+    if (!r) return deny('Route not found', 'Choose a route from the list.');
+    if (c.blocked) return deny('Card blocked', 'Unblock the card or use another card.');
+    var now = Date.now();
+    if (last[c.id] && now - last[c.id] < WAIT) return deny('Already tapped', 'You were charged a moment ago. Wait a few seconds to tap again.');
+    if (c.balance < r.fare) return deny('Not enough balance', 'Fare is ' + fmt(r.fare) + ' and you have ' + fmt(c.balance) + '. Top up ' + fmt(r.fare - c.balance) + ' or more.');
+    c.balance -= r.fare; last[c.id] = now;
+    addLog(c, r.name, r.fare, true); save(); render();
+    gate(true, 'Approved: gate open', 'Charged ' + fmt(r.fare) + '. Balance left: ' + fmt(c.balance) + '.');
+  };
+
+  $('cardSel').onchange = function(){ sel = this.value; render(); };
+  $('resetBtn').onclick = function(){
+    if (!confirm('Delete all demo cards and history?')) return;
+    db = {cards:[{id:'GF-1001', name:'Demo Rider', balance:1000, blocked:false}], log:[]};
+    sel = 'GF-1001'; last = {}; save(); render();
+    gate(true, 'Gate ready', 'Demo reset. Choose a route, then tap your card.');
+    $('gate').className = 'gate';
+  };
+
+  // Start
+  ROUTES.forEach(function(r){
+    var o = document.createElement('option');
+    o.value = r.id; o.textContent = r.name + ' (' + fmt(r.fare) + ')';
+    $('route').appendChild(o);
+  });
+  load();
+  if (!db.cards.length) { db.cards.push({id:'GF-1001', name:'Demo Rider', balance:1000, blocked:false}); save(); }
+  sel = db.cards[0].id;
+  render();
+})();
+</script>
+</body>
+</html>
